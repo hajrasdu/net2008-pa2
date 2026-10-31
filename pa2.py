@@ -35,6 +35,8 @@ def read_inventory(filename, policy):
 
     tree = ET.parse(filename)
     root = tree.getroot()
+    #gets the site name from the xml inventory 
+    site = root.get("site")
 
     total_devices = 0
     skipped_devices = 0
@@ -48,6 +50,8 @@ def read_inventory(filename, policy):
 
     #stores all of the policy violations
     violations = []
+    #stores devices that pass all policy checks
+    compliant = []
 
     for device in root.findall("device"):
         device_id = device.get("id")
@@ -76,6 +80,7 @@ def read_inventory(filename, policy):
                 interfaces["up"] += 1
             elif status == "down":
                 interfaces["down"] += 1
+                down_count += 1
             else:
                 interfaces["other"] += 1
 
@@ -105,8 +110,34 @@ def read_inventory(filename, policy):
             if down_count > maximum:
                 violations.append({"device": device_id, "type": "too_many_down", "down": down_count})
 
+        #remembers how many violations exist before this device 
+        violations_before = len(violations)
+
+        if len(violations) == violations_before:
+            compliant.append(device_id)
+
         print(device_id)
     
+    #sorts compliant device ids alphabetically
+    compliant.sort()
+
+    #creates an audit report 
+    report = {
+        "site": site,
+        "total_devices": total_devices,
+        "skipped_devices": skipped_devices,
+        "roles": roles,
+        "interfaces": interfaces,
+        "violations": violations,
+        "compliant": compliant
+    }
+
+    #writes an audit report to a json file
+    with open("audit.json", "w", encoding = "utf-8") as file:
+        json.dump(report, file, indent = 4)
+
+    print("Audit report saved to audit.json")
+
     #displays the result
     print("Total devices: ", total_devices)
     print("Skipped devices: ", skipped_devices)

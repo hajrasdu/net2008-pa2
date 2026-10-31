@@ -14,6 +14,22 @@ def read_policy(filename):
     
     return policy 
 
+def compare_versions(found, required):
+    """Return True if the device OS version is outdated."""
+
+    #converts versions into lists of numbers
+    found_parts = [int(part) for part in found.split(".")]
+    required_parts = [int(part) for part in required.split(".")]
+
+    #makes both lists the same length
+    length = max(len(found_parts), len(required_parts))
+
+    found_parts += [0] * (length - len(found_parts))
+    required_parts += [0] * (length - len(required_parts))
+
+    #compares the numerical versions 
+    return found_parts < required_parts
+
 def read_inventory(filename, policy):
     """Read an XML inventory and check policy violations."""
 
@@ -63,19 +79,26 @@ def read_inventory(filename, policy):
             else:
                 interfaces["other"] += 1
 
-        #1 Check for unknown roles
+        #Rule 1 Check for unknown roles
         if "min_os" in policy:
             if role not in policy["min_os"]:
                 violations.append({"device": device_id, "type": "unknown_role", "role": role})
+            else:
+                #Rule 4 Check for outdated os versions
+                found = device.get("os")
+                required = policy["min_os"][role]
 
-        #2 Check for missing owners
+                if compare_versions(found, required):
+                    violations.append({"device": device_id, "type": "os_outdated", "found": found, "required": required})
+
+        #Rule 2 Check for missing owners
         if policy.get("require_owner", False):
             owner = device.find("owner")
 
             if owner is None or not (owner.text or "").strip():
                 violations.append({"device": device_id, "type": "missing_owner"})
         
-        #3 Check for too mnay down interfaces
+        #Rule 3 Check for too mnay down interfaces
         if "max_down_interfaces" in policy:
             maximum = policy["max_down_interfaces"]
 

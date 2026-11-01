@@ -10,6 +10,21 @@ class AuditError(Exception):
     """Represent an error while reading audit input files."""
     pass
 
+class Device:
+    """Represent a network device from the XML inventory."""
+
+    def __init__(self, element):
+        """store the device's XML element."""
+        self.element = element
+    
+    def get_id(self):
+        """return the device ID"""
+        return self.element.get("id")
+
+    def get_role(self):
+        """return the device role"""
+        return self.element.get("role")
+
 def read_policy(filename):
     """Read the YAML compliance policy."""
 
@@ -74,7 +89,8 @@ def read_inventory(filename, policy):
     compliant = []
 
     for device in root.findall("device"):
-        device_id = device.get("id")
+        network_device = Device(device)
+        device_id = network_device.get_id()
 
         #skip devices without an id
         if device_id is None:
@@ -85,7 +101,7 @@ def read_inventory(filename, policy):
         total_devices +=1
 
         #device role
-        role = device.get("role")
+        role = network_device.get_role()
 
         #couts how many devices have this role
         roles[role] = roles.get(role, 0)+1
@@ -177,10 +193,10 @@ def main():
     policy_file = sys.argv[2]
 
     try: 
-        #reads the YAML policy
+        """reads the YAML policy"""
         policy = read_policy(policy_file)
 
-        #reads the xml invnetory and generate audit.json
+        """reads the xml invnetory and generate audit.json"""
         read_inventory(inventory_file, policy)
 
     except AuditError as error:

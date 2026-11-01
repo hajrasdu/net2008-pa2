@@ -6,11 +6,27 @@ import json
 import yaml
 import xml.etree.ElementTree as ET
 
+class AuditError(Exception):
+    """Represent an error while reading audit input files."""
+    pass
+
 def read_policy(filename):
     """Read the YAML compliance policy."""
 
-    with open(filename, "r", encoding = "utf-8") as file:
-        policy = yaml.safe_load(file)
+    try:
+        with open(filename, "r", encoding = "utf-8") as file:
+            policy = yaml.safe_load(file)
+    
+    except (OSError, UnicodeError, yaml.YAMLError) as error:
+        raise AuditError(f"{filename}: {error}") from error
+    
+    #empty yaml file means no checks are enabled
+    if policy is None:
+        policy = {}
+
+    #policy must be a dictionary
+    if not isinstance(policy, dict):
+        raise AuditError(f"{filename}: policy must be a mapping")
     
     return policy 
 
@@ -33,8 +49,12 @@ def compare_versions(found, required):
 def read_inventory(filename, policy):
     """Read an XML inventory and check policy violations."""
 
-    tree = ET.parse(filename)
-    root = tree.getroot()
+    try: 
+        tree = ET.parse(filename)
+        root = tree.getroot()
+    except (OSError, UnicodeError, ET.ParseError) as error:
+        raise AuditError(f"{filename}: {error}") from error
+
     #gets the site name from the xml inventory 
     site = root.get("site")
 
@@ -145,8 +165,29 @@ def read_inventory(filename, policy):
     print("Interfaces: ", interfaces)
     print("Violations:", violations)
 
-#tests yaml policy 
-policy = read_policy("PA2_policy.yaml")
+def main():
+    """Check arguments, run the audit and return an exit code."""
 
-#tests xml inventory 
-read_inventory("PA2_sample1.xml", policy)
+    #tests yaml policy and xml inventory
+    if len(sys.argv) != 3:
+        print("usage: python pa2.py DEVICES.xml POLICY.yaml")
+        return 2
+    
+    inventory_file = sys.argv[1]
+    policy_file = sys.argv[2]
+
+    try: 
+        #reads the YAML policy
+        policy = read_policy(policy_file)
+
+        #reads the xml invnetory and generate audit.json
+        read_inventory(inventory_file, policy)
+
+    except AuditError as error:
+        print(f"Error: {error}")
+        return 1
+
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
